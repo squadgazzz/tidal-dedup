@@ -10,3 +10,4 @@ build/
 venv/
 .idea/
 .DS_Store
+.session.yml
