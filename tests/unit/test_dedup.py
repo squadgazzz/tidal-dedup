@@ -4,10 +4,12 @@ from tidal_dedup.dedup import resolve_duplicates
 from tidal_dedup.detection import DuplicateGroup
 
 
-def _make_track(id, quality="HIGH", duration=200, name="Song", artist_name="Artist"):
+def _make_track(id, quality="HIGH", duration=200, name="Song", artist_name="Artist", version=None):
     track = MagicMock()
     track.id = id
     track.name = name
+    track.version = version
+    track.full_name = f"{name} ({version})" if version else name
     track.audio_quality = quality
     track.duration = duration
     artist = MagicMock()
@@ -51,6 +53,15 @@ class TestResolveKeepBestQuality:
         stream_info = {0: (16, 44100), 5: (24, 96000)}
         keep_idx, remove_indices = resolve_duplicates(group, strategy="best-quality", stream_info=stream_info)
         assert keep_idx == 5  # t2 has higher bit_depth/sample_rate
+        assert remove_indices == [0]
+
+    def test_ties_broken_by_remaster_preference(self):
+        t1 = _make_track(1, quality="LOSSLESS", name="Angel")
+        t2 = _make_track(2, quality="LOSSLESS", name="Angel", version="Remastered 2015")
+        group: DuplicateGroup = [(0, t1), (5, t2)]
+        stream_info = {0: (16, 44100), 5: (16, 44100)}
+        keep_idx, remove_indices = resolve_duplicates(group, strategy="best-quality", stream_info=stream_info)
+        assert keep_idx == 5  # remastered version wins
         assert remove_indices == [0]
 
     def test_ties_broken_by_position_when_stream_equal(self):

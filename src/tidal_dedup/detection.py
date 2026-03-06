@@ -1,3 +1,4 @@
+import re
 from collections import defaultdict
 from typing import List, Sequence, Tuple
 import unicodedata
@@ -10,6 +11,11 @@ DuplicateGroup = List[Tuple[int, tidalapi.Track]]
 
 def _normalize(s: str) -> str:
     return unicodedata.normalize("NFC", s).casefold().strip()
+
+
+def _full_name(track: tidalapi.Track) -> str:
+    """Return title with version included, matching tidalapi's full_name."""
+    return track.full_name or track.name
 
 
 def group_by_id(tracks: Sequence[tidalapi.Track]) -> List[DuplicateGroup]:
@@ -52,11 +58,64 @@ def group_by_isrc(tracks: Sequence[tidalapi.Track]) -> List[DuplicateGroup]:
     return result
 
 
-def group_by_name(tracks: Sequence[tidalapi.Track], duration_tolerance: int = 2) -> List[DuplicateGroup]:
-    """Group tracks that share the same normalized name + artist within duration tolerance."""
+def group_by_name(tracks: Sequence[tidalapi.Track]) -> List[DuplicateGroup]:
+    """Group tracks that share the same full name (title + version) and artist."""
     def _track_key(track: tidalapi.Track) -> str:
         artist = _normalize(track.artists[0].name) if track.artists else ""
-        return f"{_normalize(track.name)}|{artist}"
+        return f"{_normalize(_full_name(track))}|{artist}"
+
+    buckets: dict[str, DuplicateGroup] = defaultdict(list)
+    for idx, track in enumerate(tracks):
+        buckets[_track_key(track)].append((idx, track))
+
+    return [group for group in buckets.values() if len(group) >= 2]
+
+
+_REMASTER_PATTERNS = [
+    re.compile(r"[\(\[]\s*remaster(?:ed)?\s*(?:\d{4})?\s*[\)\]]", re.IGNORECASE),
+    re.compile(r"[\(\[]\s*\d{4}\s+remaster(?:ed)?\s*[\)\]]", re.IGNORECASE),
+    re.compile(r"[\(\[].*remaster(?:ed)?.*[\)\]]", re.IGNORECASE),
+    re.compile(r"\s-\s+remaster(?:ed)?\s*(?:\d{4})?$", re.IGNORECASE),
+    re.compile(r"\s-\s+\d{4}\s+remaster(?:ed)?$", re.IGNORECASE),
+]
+
+_REMASTER_VERSION_RE = re.compile(r"remaster(?:ed)?", re.IGNORECASE)
+
+
+def strip_remaster_tags(title: str) -> str:
+    """Remove remaster-related tags from a track title."""
+    result = title
+    for pattern in _REMASTER_PATTERNS:
+        result = pattern.sub("", result)
+    return result.strip()
+
+
+def _is_remaster_version(version: str | None) -> bool:
+    """Check if a version string indicates a remaster."""
+    if not version:
+        return False
+    return bool(_REMASTER_VERSION_RE.search(version))
+
+
+def is_remastered(track: tidalapi.Track) -> bool:
+    """Check if a track is a remastered version."""
+    if _is_remaster_version(track.version):
+        return True
+    return any(p.search(track.name) for p in _REMASTER_PATTERNS)
+
+
+def group_by_remaster(tracks: Sequence[tidalapi.Track]) -> List[DuplicateGroup]:
+    """Group tracks that are remastered versions of the same song.
+
+    Strips remaster tags from titles before comparing. If the version field
+    is a remaster tag, it's excluded from the grouping key. Non-remaster
+    versions (e.g., "Instrumental") are kept in the key.
+    """
+    def _track_key(track: tidalapi.Track) -> str:
+        title = _normalize(strip_remaster_tags(track.name))
+        version = _normalize(track.version) if track.version and not _is_remaster_version(track.version) else ""
+        artist = _normalize(track.artists[0].name) if track.artists else ""
+        return f"{title}|{version}|{artist}"
 
     buckets: dict[str, DuplicateGroup] = defaultdict(list)
     for idx, track in enumerate(tracks):
@@ -66,20 +125,16 @@ def group_by_name(tracks: Sequence[tidalapi.Track], duration_tolerance: int = 2)
     for group in buckets.values():
         if len(group) < 2:
             continue
-        # Within a name-match group, further filter by duration tolerance.
-        duration_clusters: dict[int, DuplicateGroup] = defaultdict(list)
-        for idx, track in group:
-            placed = False
-            for anchor_dur in duration_clusters:
-                if abs(track.duration - anchor_dur) <= duration_tolerance:
-                    duration_clusters[anchor_dur].append((idx, track))
-                    placed = True
-                    break
-            if not placed:
-                duration_clusters[track.duration].append((idx, track))
-        for cluster in duration_clusters.values():
-            if len(cluster) >= 2:
-                result.append(cluster)
+        # Only include groups where at least one track has a remaster tag
+        if not any(is_remastered(track) for _, track in group):
+            continue
+        # Verify artist overlap
+        verified: DuplicateGroup = [group[0]]
+        for idx, track in group[1:]:
+            if _same_artist(group[0][1], track):
+                verified.append((idx, track))
+        if len(verified) >= 2:
+            result.append(verified)
     return result
 
 
@@ -87,6 +142,7 @@ STRATEGY_MAP = {
     "id": group_by_id,
     "isrc": group_by_isrc,
     "name": group_by_name,
+    "remaster": group_by_remaster,
 }
 
 

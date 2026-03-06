@@ -7,12 +7,27 @@ from tidal_dedup.detection import DuplicateGroup
 from tidal_dedup.dedup import StreamInfo
 
 
+def _get_year(track: tidalapi.Track) -> str | None:
+    """Extract release year from a track's album or release date."""
+    if track.album and getattr(track.album, "release_date", None):
+        return str(track.album.release_date.year)
+    if getattr(track, "tidal_release_date", None):
+        return str(track.tidal_release_date.year)
+    return None
+
+
 def format_track(track: tidalapi.Track, stream_info: Tuple[int, int] | None = None) -> str:
     """Format a track for display."""
+    title = track.full_name or track.name
     artists = ", ".join(a.name for a in track.artists) if track.artists else "Unknown"
     quality = track.audio_quality or "?"
     mins, secs = divmod(track.duration, 60)
-    base = f"{track.name} — {artists} [{quality}] ({mins}:{secs:02d})"
+    base = f"{title} — {artists}"
+    if track.album and getattr(track.album, "name", None):
+        year = _get_year(track)
+        album_str = f"{track.album.name} ({year})" if year else track.album.name
+        base += f" [{album_str}]"
+    base += f" [{quality}] ({mins}:{secs:02d})"
     if stream_info:
         bit_depth, sample_rate = stream_info
         if bit_depth or sample_rate:

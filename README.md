@@ -4,12 +4,13 @@ A CLI tool to find and remove duplicate tracks from your Tidal playlists and fav
 
 ## Features
 
-- **Three detection strategies** (combinable):
-  - `--by-name` (default) — matches by track name + artist + duration (within 2s tolerance)
+- **Four detection strategies** (combinable):
+  - `--by-name` (default) — matches by full track name (title + version) and artist
   - `--by-id` — exact same Tidal track ID added multiple times
   - `--by-isrc` — same ISRC code with artist verification to avoid Tidal metadata errors
+  - `--by-remaster` — finds remastered versions of the same track (e.g., "Angel" vs "Angel (Remastered 2015)"). Handles patterns like `(Remastered)`, `(Remastered YYYY)`, `(YYYY Remaster)`, `[Remastered]`, `- Remastered`, and `(Deluxe Remastered)`.
 - **Three resolution strategies** for choosing which duplicate to keep:
-  - `--keep best-quality` (default) — keeps the highest quality version (compares audio tier, then bit depth and sample rate when tiers match)
+  - `--keep best-quality` (default) — keeps the highest quality version (compares audio tier, then bit depth/sample rate, then prefers remastered versions)
   - `--keep oldest` — keeps the first occurrence
   - `--keep newest` — keeps the last occurrence
 - **Three execution modes:**
@@ -46,6 +47,9 @@ tidal-dedup --all
 # Combine detection strategies
 tidal-dedup --by-id --by-isrc --by-name
 
+# Find and remove remastered duplicates
+tidal-dedup --by-remaster
+
 # Keep oldest duplicate, apply automatically
 tidal-dedup --keep oldest --mode auto
 
@@ -67,12 +71,12 @@ Deduplication Summary: 2 duplicate group(s), 2 track(s) to remove
 ============================================================
 
   Duplicate group (2 tracks):
-    [  KEEP  ] #95: Without — The Soft Moon [LOSSLESS] (3:24) 16bit/44100Hz
-    [  REMOVE] #96: Without — The Soft Moon [LOSSLESS] (3:24) 16bit/44100Hz
+    [  KEEP  ] #95: Without — The Soft Moon [Deeper (2015)] [LOSSLESS] (3:24) 16bit/44100Hz
+    [  REMOVE] #96: Without — The Soft Moon [Deeper (2015)] [LOSSLESS] (3:24) 16bit/44100Hz
 
   Duplicate group (2 tracks):
-    [  KEEP  ] #195: Masc — Chat Pile [LOSSLESS] (4:09) 16bit/44100Hz
-    [  REMOVE] #241: Masc — Chat Pile [LOSSLESS] (4:09) 16bit/44100Hz
+    [  KEEP  ] #195: Masc — Chat Pile [God's Country (2022)] [LOSSLESS] (4:09) 16bit/44100Hz
+    [  REMOVE] #241: Masc — Chat Pile [God's Country (2022)] [LOSSLESS] (4:09) 16bit/44100Hz
 
 ============================================================
 Total: 2 track(s) will be removed

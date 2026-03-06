@@ -1,5 +1,5 @@
 from typing import Dict, List, Tuple
-from tidal_dedup.detection import DuplicateGroup
+from tidal_dedup.detection import DuplicateGroup, is_remastered
 
 QUALITY_RANK = {"LOW": 0, "HIGH": 1, "LOSSLESS": 2, "HI_RES_LOSSLESS": 3}
 
@@ -49,6 +49,7 @@ def resolve_duplicates(group: DuplicateGroup, strategy: str = "oldest",
                 QUALITY_RANK.get(item[1].audio_quality, -1),
                 si.get(item[0], (0, 0))[0],  # bit_depth
                 si.get(item[0], (0, 0))[1],  # sample_rate
+                1 if is_remastered(item[1]) else 0,  # prefer remastered
                 -item[0],
             ),
             reverse=True,

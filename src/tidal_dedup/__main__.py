@@ -51,7 +51,8 @@ def build_parser() -> argparse.ArgumentParser:
     strategy_group = parser.add_argument_group("detection strategies (combine any; default: --by-name)")
     strategy_group.add_argument("--by-id", action="store_true", help="Match by exact Tidal track ID")
     strategy_group.add_argument("--by-isrc", action="store_true", help="Match by ISRC code")
-    strategy_group.add_argument("--by-name", action="store_true", help="Match by name + artist + duration (default)")
+    strategy_group.add_argument("--by-name", action="store_true", help="Match by name + artist (default)")
+    strategy_group.add_argument("--by-remaster", action="store_true", help="Match remastered versions of the same track")
 
     # Resolution
     parser.add_argument(
@@ -79,7 +80,9 @@ def get_strategies(args) -> list[str]:
         strategies.append("isrc")
     if args.by_name:
         strategies.append("name")
-    return strategies  # empty list defaults to ["id"] in find_duplicates
+    if args.by_remaster:
+        strategies.append("remaster")
+    return strategies  # empty list defaults to ["name"] in find_duplicates
 
 
 def process_tracks(tracks, args, remove_fn):
