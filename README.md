@@ -1,3 +1,5 @@
+# This repo is archived in favor of https://github.com/squadgazzz/luna-plugins#playlisttools. Please use TidaLuna with this plugin for better experience.
+
 # tidal-dedup
 
 A CLI tool to find and remove duplicate tracks from your Tidal playlists and favorites.
